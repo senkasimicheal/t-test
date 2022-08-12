@@ -1,8 +1,9 @@
-#include<stdio.h>
+#include<stdio.h> //input output lib
 #include<math.h>
 #include<stdlib.h>
 #include<string.h>
 
+// DECLARING FUNCTIONS
 // function to calculate the test statistic from user entered data
 float ttest(float x1[100], float x2[100], int n1, int n2);
 
@@ -14,6 +15,17 @@ float mean(float numbers[100], int n);
 
 // function to compute the variance of numbers
 float var(float numbers[100], int n);
+
+//THE T TABLE STRUCTURE
+struct my_record {
+    int df;
+    float t25;
+    float t1;
+    float t05;
+    float t025;
+    float t01;
+    float t005;
+};
 
 int main(){
     MENU:
@@ -57,10 +69,54 @@ int main(){
 
         float tvalue = ttest(sample_data1, sample_data2, n1, n2);
 
+        //THE CRITICAL VALUE
+        FILE* my_file = fopen("ttable.csv","r");
+        struct my_record records[101];
+        size_t count = 0;
+        for (; count < sizeof(records)/sizeof(records[0]); ++count)
+        {
+            int got = fscanf(my_file, "%d,%f,%f,%f,%f,%f,%f", &records[count].df, &records[count].t25,&records[count].t1,&records[count].t05,&records[count].t025,&records[count].t01,&records[count].t005);
+            if (got != 7) break; // wrong number of tokens - maybe end of file
+        }
+        int df=n1+n2-2;
+        float alpha, critical_t;
+        printf("Enter the significance level (alpha): ");
+        scanf("%f",&alpha);
+        if(alpha==0.25f){
+            critical_t=records[df].t25;  
+        }
+        else if(alpha==0.1f){
+            critical_t=records[df].t1;
+        }
+        else if(alpha==0.05f){
+            critical_t=records[df].t05;
+        }
+        else if(alpha==0.025f){
+            critical_t=records[df].t025;
+        }
+        else if(alpha==0.01f){
+            critical_t=records[df].t01;
+        }
+        else if(alpha==0.005f){
+            critical_t=records[df].t005;
+        }
+        else{
+            printf("\nNot a significant, using default 0.05");
+            critical_t = critical_t=records[df].t05;
+        }
+        fclose(my_file);
+
         printf("\nTEST RESULTS");
         printf("\n___________________________________");
         printf("\nThe calculated t-value = %.3f\n",tvalue);
-        printf("\ndf = %d\n",n1+n2-2);
+        printf("df = %d\nSignificance level = %.3f\n",n1+n2-2,alpha);
+        printf("critical value: %.3f\n",critical_t);
+        printf("\nNull H: population mean1 - population mean2 = 0");
+        if(tvalue>critical_t){
+            printf("\nReject the null hypothesis\n");
+        }else{
+            printf("\nFail to reject the null hypothesis\n");
+        }
         printf("___________________________________");
     }
 
@@ -73,9 +129,6 @@ int main(){
         scanf("%s",name);
         printf("\nTEST RESULTS\n");
         float tvalue = ttest_csv(name);
-        printf("\n___________________________________");
-        printf("\nThe calculated t-value = %.3f\n",tvalue);
-        printf("___________________________________");
     }
     else if(menu_choice==3){
         system("cls");
@@ -84,6 +137,7 @@ int main(){
     else{
         goto MENU;
     }
+    return 0;
 }
 
 // the mean
@@ -108,11 +162,8 @@ float var(float numbers[100], int n){
     return squared_sum/(n-1);
 }
 
-// ttest
+// ttest from user defined data (entered manually)
 float ttest(float x1[100], float x2[100], int n1, int n2){
-    float sum1 =  0;
-    int i;
-
     // mean of the first sample
     float mean1 = mean(x1,n1);
 
@@ -129,18 +180,12 @@ float ttest(float x1[100], float x2[100], int n1, int n2){
     float pooled_var = (var1+var2)/(n1+n2-2);
     
     // // test statistic (computed t value) for paired sample t test (dependent)
-    // float t_value = (mean1-mean2)/sqrt(pooled_var/(1/n1 + 1/n2));
+    float tvalue = (mean1-mean2)/sqrt(pooled_var/n1 + pooled_var/n2);
 
-    // test statistic for unpaired sample t test (independent)
-    float tvalue = (mean1-mean2)/sqrt(var1/n1 + var2/n2);
-
-    // // checking to see if the t value is negative
-    // if(tvalue<0){
-    //     float new_tvalue = -1*t_value;
-    // }
     return tvalue;
 }
 
+// ttest based on data stored in a csv
 float ttest_csv(char data[100]){
     FILE *fp;
 
@@ -151,7 +196,8 @@ float ttest_csv(char data[100]){
         exit(0);
     }
 
-    int x, y, sample1,sample2, sum1=0, sum2=0;
+    int x, y, sample1,sample2;
+    int sum1=0, sum2=0;
     int counter1 = 0;
     float Modified_sum1, Modified_sum2, mean1, mean2;
     float variance1, variance2,Modified_var1, Modified_var2, sum_sqrd1=0, sum_sqrd2=0;
@@ -197,8 +243,60 @@ float ttest_csv(char data[100]){
     variance2 = sum_sqrd2 - pow(mean2,2);
     Modified_var1 = variance1/(counter1-2);
     Modified_var2 = variance2/(counter1-2);
-    printf("\n\ndf = %d",counter1-1 + counter1-1 - 2);
+    int df=counter1-1 + counter1-1 - 2;
+    // finding the pooled variance
+    float pooled_var = (Modified_var1+Modified_var2)/df;
+    
+    // // test statistic (computed t value) for paired sample t test (dependent)
+    // float t_value = (mean1-mean2)/sqrt(pooled_var/(1/n1 + 1/n2));
+    float tvalue = (mean1-mean2)/sqrt(pooled_var/(counter1-1) + pooled_var/(counter1-1));
 
-    float tvalue = (mean1-mean2)/sqrt(Modified_var1/(counter1-1) + Modified_var2/(counter1-1));
-    return tvalue;
+    //THE CRITICAL VALUE
+        FILE* my_file = fopen("ttable.csv","r");
+        struct my_record records[101];
+        size_t count = 0;
+        for (; count < sizeof(records)/sizeof(records[0]); ++count)
+        {
+            int got = fscanf(my_file, "%d,%f,%f,%f,%f,%f,%f", &records[count].df, &records[count].t25,&records[count].t1,&records[count].t05,&records[count].t025,&records[count].t01,&records[count].t005);
+            if (got != 7) break; // wrong number of tokens - maybe end of file
+        }
+        float alpha, critical_t;
+        printf("\n\nEnter the significance level (alpha): ");
+        scanf("%f",&alpha);
+        if(alpha==0.25f){
+            critical_t=records[df].t25;  
+        }
+        else if(alpha==0.1f){
+            critical_t=records[df].t1;
+        }
+        else if(alpha==0.05f){
+            critical_t=records[df].t05;
+        }
+        else if(alpha==0.025f){
+            critical_t=records[df].t025;
+        }
+        else if(alpha==0.01f){
+            critical_t=records[df].t01;
+        }
+        else if(alpha==0.005f){
+            critical_t=records[df].t005;
+        }
+        else{
+            printf("\nNot found, Using the default 0.05");
+            critical_t = critical_t=records[df].t05;
+        }
+        fclose(my_file);
+
+        printf("\nTEST RESULTS");
+        printf("\n___________________________________");
+        printf("\nThe calculated t-value = %.3f\n",tvalue);
+        printf("df = %d\nSignificance level = %.3f\n",df,alpha);
+        printf("critical value: %.3f\n",critical_t);
+        printf("\nNull H: population mean1 - population mean2 = 0");
+        if(tvalue>critical_t){
+            printf("\nReject the null hypothesis\n");
+        }else{
+            printf("\nFail to reject the null hypothesis\n");
+        }
+        printf("___________________________________");
 }
